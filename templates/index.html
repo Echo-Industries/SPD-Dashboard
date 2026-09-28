@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seattle PD Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/Seattle_Police_Logo.png') }}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        obsidian: '#0b1724',
+                        darkcard: '#111f2e',
+                        darkborder: '#2b3b4d',
+                        accentred: '#3b82f6',
+                        accentamber: '#f59e0b',
+                        accentblue: '#3b82f6',
+                        accentgreen: '#10b981',
+                        accentglow: 'rgba(239, 68, 68, 0.18)'
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background: linear-gradient(180deg, #0b1724 0%, #101d2a 100%);
+            color: #e2e8f0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0b1724; }
+        ::-webkit-scrollbar-thumb { background: #30445a; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #49627b; }
+        .glow-red { box-shadow: none; }
+        .glow-card { box-shadow: 0 3px 12px rgba(0, 0, 0, 0.18); border: 1px solid #2b3b4d; border-radius: 6px; }
+        .unit-picker details { background: #172638; border: 1px solid #2b3b4d; border-radius: 6px; }
+        .unit-picker summary { cursor: pointer; list-style: none; padding: 0.75rem 1rem; color: #cbd5e1; font-size: 0.875rem; }
+        .unit-picker summary::-webkit-details-marker { display: none; }
+        .unit-picker details[open] summary { border-bottom: 1px solid #2b3b4d; }
+        .brand-badge {
+            width: 2.5rem;
+            height: 2.5rem;
+            object-fit: contain;
+        }
+        .log-control:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+        }
+        .nav-btn.active {
+            background: #245b91;
+            color: white;
+            box-shadow: inset 3px 0 #75b9f2;
+        }
+        .bg-red-600 { background-color: #245b91 !important; }
+        .hover\:bg-red-700:hover { background-color: #1d4d7c !important; }
+        .text-red-500 { color: #f87171 !important; }
+        .text-red-400 { color: #fca5a5 !important; }
+        .border-red-900\/30 { border-color: rgba(239, 68, 68, 0.35) !important; }
+        .bg-red-950 { background-color: rgba(69, 10, 10, 0.9) !important; }
+        .bg-red-950\/60 { background-color: rgba(69, 10, 10, 0.6) !important; }
+        .bg-red-950\/80 { background-color: rgba(69, 10, 10, 0.8) !important; }
+        .text-amber-500 { color: #fbbf24 !important; }
+        .text-amber-400 { color: #fcd34d !important; }
+        .bg-amber-950\/60 { background-color: rgba(120, 53, 15, 0.6) !important; }
+        .border-amber-900\/30 { border-color: rgba(245, 158, 11, 0.3) !important; }
+        .text-emerald-500 { color: #34d399 !important; }
+        .text-emerald-400 { color: #6ee7b7 !important; }
+        .bg-emerald-950\/60 { background-color: rgba(6, 78, 59, 0.6) !important; }
+        .border-emerald-900\/30 { border-color: rgba(16, 185, 129, 0.25) !important; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+    <header class="bg-darkcard border-b border-darkborder sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <img src="{{ url_for('static', filename='images/Seattle_Police_Logo.png') }}" alt="Seattle Police Department" class="brand-badge">
+            <div>
+                <h1 class="font-bold text-lg tracking-wider text-white">SEATTLE PD</h1>
+                <p class="text-xs text-red-400 font-semibold tracking-widest uppercase">Operations Center</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-4">
+            <div class="hidden md:flex items-center space-x-2 bg-neutral-900 border border-neutral-800 px-3 py-1.5 rounded-lg text-xs">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span class="text-neutral-400">Dispatcher:</span>
+                <span id="currentUserName" class="text-white font-medium">Seattle PD</span>
+            </div>
+            <span id="spdTeamStatus" class="text-xs text-amber-400">Verifying in-game team...</span>
+            <div class="relative">
+                <button id="accountButton" type="button" onclick="toggleAccountMenu()" class="flex items-center gap-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 px-2 py-1.5 rounded-lg text-white transition">
+                    <img id="accountAvatar" alt="Roblox profile headshot" class="hidden w-9 h-9 rounded-full object-cover border border-sky-700">
+                    <i id="accountAvatarFallback" class="fa-solid fa-user w-9 h-9 rounded-full bg-sky-900/50 border border-sky-700 flex items-center justify-center text-xs text-sky-200"></i>
+                    <i class="fa-solid fa-chevron-down text-[10px] text-neutral-400"></i>
+                </button>
+                <div id="accountMenu" class="hidden absolute right-0 top-12 z-50 w-56 bg-neutral-950 border border-neutral-800 rounded-xl p-3 shadow-2xl">
+                    <p class="text-[11px] uppercase tracking-wider text-neutral-500">Signed in as</p>
+                    <p id="accountMenuName" class="text-sm text-white font-semibold truncate mt-1"></p>
+                    <a href="/auth/logout" class="mt-3 block text-center bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 px-3 py-2 rounded-lg text-xs font-medium transition">Sign out</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex-1 flex flex-col md:flex-row">
+        <aside class="w-full md:w-64 bg-darkcard border-r border-darkborder p-4 flex flex-row md:flex-col justify-between overflow-x-auto">
+            <nav class="flex md:flex-col space-x-2 md:space-x-0 md:space-y-1 w-full">
+                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn active w-full text-left px-4 py-3 rounded-xl text-sm font-medium flex items-center space-x-3 transition text-neutral-300 hover:bg-neutral-900 hover:text-white">
+                    <i class="fa-solid fa-chart-pie w-5 text-red-400"></i>
+                    <span>Dashboard</span>
+                </button>
+                <button onclick="switchTab('arrest-log')" id="nav-arrest-log" class="nav-btn log-control w-full text-left px-4 py-3 rounded-xl text-sm font-medium flex items-center space-x-3 transition text-neutral-400 hover:bg-neutral-900 hover:text-white">
+                    <i class="fa-solid fa-user-lock w-5 text-red-400"></i>
+                    <span>Log Arrest</span>
+                </button>
+                <button onclick="switchTab('citation-log')" id="nav-citation-log" class="nav-btn log-control w-full text-left px-4 py-3 rounded-xl text-sm font-medium flex items-center space-x-3 transition text-neutral-400 hover:bg-neutral-900 hover:text-white">
+                    <i class="fa-solid fa-ticket w-5 text-amber-500"></i>
+                    <span>Log Citation</span>
+                </button>
+                <button onclick="switchTab('incident-log')" id="nav-incident-log" class="nav-btn log-control w-full text-left px-4 py-3 rounded-xl text-sm font-medium flex items-center space-x-3 transition text-neutral-400 hover:bg-neutral-900 hover:text-white">
+                    <i class="fa-solid fa-file-waveform w-5 text-blue-500"></i>
+                    <span>Log Incident</span>
+                </button>
+                <button onclick="switchTab('warrants')" id="nav-warrants" class="nav-btn w-full text-left px-4 py-3 rounded-xl text-sm font-medium flex items-center space-x-3 transition text-neutral-400 hover:bg-neutral-900 hover:text-white">
+                    <i class="fa-solid fa-ban w-5 text-amber-500"></i>
+                    <span>Warrants / BOLO</span>
+                </button>
+                <button onclick="switchTab('records')" id="nav-records" class="nav-btn w-full text-left px-4 py-3 rounded-xl text-sm font-medium flex items-center space-x-3 transition text-neutral-400 hover:bg-neutral-900 hover:text-white">
+                    <i class="fa-solid fa-folder-open w-5 text-amber-500"></i>
+                    <span>Search Records</span>
+                </button>
+                <button onclick="switchTab('live-hub')" id="nav-live-hub" class="nav-btn w-full text-left px-4 py-3 rounded-xl text-sm font-medium flex items-center space-x-3 transition text-neutral-400 hover:bg-neutral-900 hover:text-white">
+                    <i class="fa-solid fa-tower-broadcast w-5 text-violet-500"></i>
+                    <span>Live PD Hub</span>
+                </button>
+                <button onclick="switchTab('analytics')" id="nav-analytics" class="nav-btn w-full text-left px-4 py-3 rounded-xl text-sm font-medium flex items-center space-x-3 transition text-neutral-400 hover:bg-neutral-900 hover:text-white">
+                    <i class="fa-solid fa-chart-line w-5 text-cyan-500"></i>
+                    <span>Analytics</span>
+                </button>
+            </nav>
+
+            <div class="hidden md:block pt-4 border-t border-darkborder mt-auto">
+                <div class="bg-neutral-900/60 p-3 rounded-xl border border-darkborder text-xs text-neutral-400">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-white font-medium">System Status</span>
+                        <span id="serverStatusBadge" class="text-emerald-400 font-semibold">Online</span>
+                    </div>
+                    <p class="text-[11px] text-neutral-500">Connected to City Network</p>
+                </div>
+            </div>
+        </aside>
+
+        <main class="flex-1 p-6 md:p-8 overflow-y-auto">
+            <section id="tab-dashboard" class="tab-content space-y-6">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold tracking-tight text-white">Department Overview</h2>
+                        <p class="text-sm text-neutral-400">Real-time crime, enforcement, and incident system summaries.</p>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <button onclick="switchTab('arrest-log')" class="log-control bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition flex items-center space-x-2">
+                            <i class="fa-solid fa-plus"></i><span>New Arrest</span>
+                        </button>
+                        <button onclick="switchTab('citation-log')" class="log-control bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-white px-4 py-2 rounded-xl text-sm font-medium transition flex items-center space-x-2">
+                            <i class="fa-solid fa-plus"></i><span>New Citation</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div class="bg-darkcard p-5 rounded-2xl glow-card">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-neutral-400">Total Arrests</span>
+                            <div class="w-10 h-10 rounded-xl bg-red-950/60 text-red-500 flex items-center justify-center border border-red-900/30">
+                                <i class="fa-solid fa-user-lock text-lg"></i>
+                            </div>
+                        </div>
+                        <div class="mt-4 flex items-baseline">
+                            <span id="kpiTotalArrests" class="text-3xl font-bold text-white">0</span>
+                            <span class="ml-2 text-xs text-neutral-400" id="kpiArrestRange">Starting at ARR-00001</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-darkcard p-5 rounded-2xl glow-card">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-neutral-400">Citations</span>
+                            <div class="w-10 h-10 rounded-xl bg-amber-950/60 text-amber-500 flex items-center justify-center border border-amber-900/30">
+                                <i class="fa-solid fa-ticket text-lg"></i>
+                            </div>
+                        </div>
+                        <div class="mt-4 flex items-baseline">
+                            <span id="kpiTotalCitations" class="text-3xl font-bold text-white">0</span>
+                            <span class="ml-2 text-xs text-neutral-400">Starting at CIT-00001</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-darkcard p-5 rounded-2xl glow-card">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-neutral-400">Incident Reports</span>
+                            <div class="w-10 h-10 rounded-xl bg-blue-950/60 text-blue-400 flex items-center justify-center border border-blue-900/30">
+                                <i class="fa-solid fa-file-waveform text-lg"></i>
+                            </div>
+                        </div>
+                        <div class="mt-4 flex items-baseline">
+                            <span id="kpiTotalIncidents" class="text-3xl font-bold text-white">0</span>
+                            <span class="ml-2 text-xs text-neutral-400">Logged</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-darkcard p-5 rounded-2xl glow-card">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-neutral-400">Active Warrants</span>
+                            <div class="w-10 h-10 rounded-xl bg-emerald-950/60 text-emerald-500 flex items-center justify-center border border-emerald-900/30">
+                                <i class="fa-solid fa-ban text-lg"></i>
+                            </div>
+                        </div>
+                        <div class="mt-4 flex items-baseline">
+                            <span id="kpiActiveWarrants" class="text-3xl font-bold text-white">0</span>
+                            <span class="ml-2 text-xs text-neutral-400">Combined</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-darkcard p-5 rounded-2xl glow-card">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-neutral-400">Active Units</span>
+                            <div class="w-10 h-10 rounded-xl bg-violet-950/60 text-violet-500 flex items-center justify-center border border-violet-900/30">
+                                <i class="fa-solid fa-shield-halved text-lg"></i>
+                            </div>
+                        </div>
+                        <div class="mt-4 flex items-baseline">
+                            <span id="kpiActiveUnits" class="text-3xl font-bold text-white">--</span>
+                            <span class="ml-2 text-xs text-neutral-400">Patrol & units</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-darkcard p-6 rounded-2xl glow-card">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-bold text-white flex items-center space-x-2">
+                                <i class="fa-solid fa-user-lock text-red-500"></i>
+                                <span>Recent Arrests</span>
+                            </h3>
+                            <button onclick="switchTab('records')" class="text-xs text-red-500 hover:text-red-400 font-medium">View All</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="border-b border-darkborder text-xs text-neutral-500 uppercase">
+                                    <tr>
+                                        <th class="py-2 px-3">Case #</th>
+                                        <th class="py-2 px-3">Suspect</th>
+                                        <th class="py-2 px-3">Offense</th>
+                                        <th class="py-2 px-3">Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentArrestTableBody" class="divide-y divide-darkborder text-neutral-300">
+                                    <tr><td colspan="4" class="py-4 text-center text-neutral-500 text-xs">No arrest records yet.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="bg-darkcard p-6 rounded-2xl glow-card">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-bold text-white flex items-center space-x-2">
+                                <i class="fa-solid fa-ticket text-amber-500"></i>
+                                <span>Recent Citations</span>
+                            </h3>
+                            <button onclick="switchTab('records')" class="text-xs text-amber-500 hover:text-amber-400 font-medium">View All</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="border-b border-darkborder text-xs text-neutral-500 uppercase">
+                                    <tr>
+                                        <th class="py-2 px-3">Case #</th>
+                                        <th class="py-2 px-3">Vehicle</th>
+                                        <th class="py-2 px-3">Reason</th>
+                                        <th class="py-2 px-3">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentCitationTableBody" class="divide-y divide-darkborder text-neutral-300">
+                                    <tr><td colspan="4" class="py-4 text-center text-neutral-500 text-xs">No citation records yet.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-arrest-log" class="tab-content hidden space-y-6 max-w-3xl mx-auto">
+                <div>
+                    <h2 class="text-2xl font-bold tracking-tight text-white">Log Arrest</h2>
+                    <p class="text-sm text-neutral-400">Record arrests, charges, and prisoner details. Case number is auto-assigned sequentially.</p>
+                </div>
+
+                <form id="arrestReportForm" onsubmit="submitArrestReport(event)" class="bg-darkcard p-6 md:p-8 rounded-2xl glow-card space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Next Case Number Preview</label>
+                            <output id="arrestCaseNum" class="block w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-neutral-400 font-mono text-sm" aria-label="Automatically assigned case number"></output>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Offense / Charge</label>
+                            <input type="text" id="arrestOffense" placeholder="e.g. DUI, Assault, Warrant" required class="w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Suspect Name</label>
+                            <input type="search" id="arrestSuspect" list="livePlayerOptions" placeholder="Search current players..." autocomplete="off" required class="w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600">
+                            <datalist id="livePlayerOptions"></datalist>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Arrest Location</label>
+                            <input type="text" id="arrestLocation" placeholder="Street, intersection, or landmark" required class="w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Units Responded</label>
+                        <div id="arrestUnits" class="unit-picker"></div>
+                        <p class="text-[11px] text-neutral-500 mt-1">Your signed-in Seattle PD account is automatically recorded.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Notes & Booking Details</label>
+                        <textarea id="arrestNotes" rows="3" placeholder="Enter booking details, observations, or prisoner transport notes..." class="w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-600"></textarea>
+                    </div>
+
+                    <div class="flex justify-end space-x-3 pt-4 border-t border-darkborder">
+                        <button type="button" onclick="switchTab('dashboard')" class="px-5 py-2.5 rounded-xl text-sm font-medium bg-neutral-900 text-neutral-300 hover:bg-neutral-800 transition">Cancel</button>
+                        <button type="submit" class="px-6 py-2.5 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition glow-red">Publish Arrest</button>
+                    </div>
+                </form>
+            </section>
+
+            <section id="tab-citation-log" class="tab-content hidden space-y-6 max-w-3xl mx-auto">
+                <div>
+                    <h2 class="text-2xl font-bold tracking-tight text-white">Log Citation</h2>
+                    <p class="text-sm text-neutral-400">Record traffic or ordinance violations. Case number is auto-assigned sequentially.</p>
+                </div>
+
+                <form id="citationReportForm" onsubmit="submitCitationReport(event)" class="bg-darkcard p-6 md:p-8 rounded-2xl glow-card space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Next Case Number Preview</label>
+                            <output id="citationCaseNum" class="block w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-neutral-400 font-mono text-sm" aria-label="Automatically assigned case number"></output>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Citation Type</label>
+                            <select id="citationType" required class="w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-amber-500">
+                                <option value="Traffic">Traffic</option>
+                                <option value="Ordinance">Ordinance</option>
+                                <option value="Equipment">Equipment</option>
+                                <option value="Parking">Parking</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Driver / Subject</label>
+                            <input type="text" id="citationDriver" placeholder="Name or plate if known" required class="w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-amber-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Vehicle / Plate</label>
+                            <input type="text" id="citationVehicle" placeholder="Plate, vehicle, or description" required class="w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-amber-500">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Location</label>
+                            <input type="text" id="citationLocation" placeholder="Street or intersection" required class="w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-amber-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Reason / Violation</label>
+                            <input type="text" id="citationReason" placeholder="e.g. speeding, expired tab, noise ordinance" required class="w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-amber-500">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Units Responded</label>
+                        <div id="citationUnits" class="unit-picker"></div>
+                        <p class="text-[11px] text-neutral-500 mt-1">Your signed-in Seattle PD account is automatically recorded.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Optional Notes</label>
+                        <textarea id="citationNotes" rows="3" placeholder="Add officer notes or disposition details..." class="w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-amber-500"></textarea>
+                    </div>
+
+                    <div class="flex justify-end space-x-3 pt-4 border-t border-darkborder">
+                        <button type="button" onclick="switchTab('dashboard')" class="px-5 py-2.5 rounded-xl text-sm font-medium bg-neutral-900 text-neutral-300 hover:bg-neutral-800 transition">Cancel</button>
+                        <button type="submit" class="px-6 py-2.5 rounded-xl text-sm font-semibold bg-amber-600 text-white hover:bg-amber-700 transition">Publish Citation</button>
+                    </div>
+                </form>
+            </section>
+
+            <section id="tab-incident-log" class="tab-content hidden space-y-6 max-w-3xl mx-auto">
+                <div>
+                    <h2 class="text-2xl font-bold tracking-tight text-white">Log Incident Report</h2>
+                    <p class="text-sm text-neutral-400">Document incidents, scene conditions, and officer actions. Case number is auto-assigned sequentially.</p>
+                </div>
+
+                <form id="incidentReportForm" onsubmit="submitIncidentReport(event)" class="bg-darkcard p-6 md:p-8 rounded-2xl glow-card space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Next Case Number Preview</label>
+                            <output id="incidentCaseNum" class="block w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-neutral-400 font-mono text-sm" aria-label="Automatically assigned case number"></output>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Incident Type</label>
+                            <select id="incidentType" required class="w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-600">
+                                <option value="Disturbance">Disturbance</option>
+                                <option value="Theft">Theft</option>
+                                <option value="Vehicle">Vehicle Incident</option>
+                                <option value="Assault">Assault</option>
+                                <option value="Misc">Miscellaneous</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Primary Location</label>
+                            <input type="text" id="incidentLocation" placeholder="Street, building, or intersection" required class="w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-600">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Severity</label>
+                            <select id="incidentSeverity" required class="w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-600">
+                                <option value="Low">Low</option>
+                                <option value="Medium" selected>Medium</option>
+                                <option value="High">High</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Units / Officers Responded</label>
+                        <div id="incidentUnits" class="unit-picker"></div>
+                        <p class="text-[11px] text-neutral-500 mt-1">Your signed-in Seattle PD account is automatically recorded.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Narrative</label>
+                        <textarea id="incidentNarrative" rows="4" placeholder="Describe the incident, conditions, and disposition..." class="w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-600"></textarea>
+                    </div>
+
+                    <div class="flex justify-end space-x-3 pt-4 border-t border-darkborder">
+                        <button type="button" onclick="switchTab('dashboard')" class="px-5 py-2.5 rounded-xl text-sm font-medium bg-neutral-900 text-neutral-300 hover:bg-neutral-800 transition">Cancel</button>
+                        <button type="submit" class="px-6 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 transition">Publish Incident</button>
+                    </div>
+                </form>
+            </section>
+
+            <section id="tab-warrants" class="tab-content hidden space-y-6">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold tracking-tight text-white">Warrants & BOLO</h2>
+                        <p class="text-sm text-neutral-400">Manual entries combined with ERLC MDT warrants and BOLOs, filtered to active suspects.</p>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <button onclick="switchTab('dashboard')" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-white px-4 py-2 rounded-xl text-sm font-medium transition">Return</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-darkcard p-6 rounded-2xl glow-card">
+                        <h3 class="font-bold text-white mb-4 flex items-center space-x-2">
+                            <i class="fa-solid fa-user-shield text-amber-500"></i>
+                            <span>Log Manual Warrant / BOLO</span>
+                        </h3>
+                        <form id="warrantForm" onsubmit="submitWarrant(event)" class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Case / ID</label>
+                                    <input type="text" id="warrantId" placeholder="WRT-00001" required class="w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-amber-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Type</label>
+                                    <select id="warrantType" class="w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-amber-500">
+                                        <option value="warrant">Warrant</option>
+                                        <option value="bolo">BOLO</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Suspect Name</label>
+                                <input type="text" id="warrantSuspect" placeholder="Full suspect name" required class="w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-amber-500">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Suspect ID (optional)</label>
+                                <input type="text" id="warrantSuspectId" placeholder="Roblox user ID or identifier" class="w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-amber-500">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Charges / Description</label>
+                                <textarea id="warrantCharges" rows="4" placeholder="List charges, description, or intelligence notes..." required class="w-full bg-neutral-900 border border-darkborder rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-amber-500"></textarea>
+                            </div>
+
+                            <div class="flex justify-end">
+                                <button type="submit" class="px-6 py-2.5 rounded-xl text-sm font-semibold bg-amber-600 text-white hover:bg-amber-700 transition">Add Manual Entry</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="bg-darkcard p-6 rounded-2xl glow-card">
+                        <h3 class="font-bold text-white mb-4 flex items-center space-x-2">
+                            <i class="fa-solid fa-file-contract text-red-500"></i>
+                            <span>Active MDT Warrants / BOLO</span>
+                        </h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="border-b border-darkborder text-xs text-neutral-500 uppercase">
+                                    <tr>
+                                        <th class="py-2 px-3">Suspect</th>
+                                        <th class="py-2 px-3">Type</th>
+                                        <th class="py-2 px-3">Source</th>
+                                        <th class="py-2 px-3">Charges</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="activeWarrantTable" class="divide-y divide-darkborder text-neutral-300">
+                                    <tr><td colspan="4" class="py-6 text-center text-neutral-500 text-xs">No active warrants or BOLOs found.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-records" class="tab-content hidden space-y-6">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold tracking-tight text-white">Incident Records & Search</h2>
+                        <p class="text-sm text-neutral-400">Search, browse, and inspect all police reports and enforcement logs.</p>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <div class="relative">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-neutral-500 text-sm"></i>
+                            <input type="text" id="recordSearchInput" oninput="filterRecords()" placeholder="Search case #, subject, officers..." class="bg-darkcard border border-darkborder rounded-xl pl-10 pr-3 py-2 text-sm text-white focus:outline-none">
+                        </div>
+                        <select id="recordFilterType" onchange="filterRecords()" class="bg-darkcard border border-darkborder rounded-xl px-3 py-2 text-sm text-white focus:outline-none">
+                            <option value="all">All Records</option>
+                            <option value="arrest">Arrests</option>
+                            <option value="citation">Citations</option>
+                            <option value="incident">Incidents</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="bg-darkcard rounded-2xl glow-card overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-neutral-900/80 border-b border-darkborder text-xs text-neutral-400 uppercase">
+                                <tr>
+                                    <th class="py-3 px-4">Case #</th>
+                                    <th class="py-3 px-4">Category</th>
+                                    <th class="py-3 px-4">Details / Subject</th>
+                                    <th class="py-3 px-4">Officers</th>
+                                    <th class="py-3 px-4">Timestamp</th>
+                                    <th class="py-3 px-4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="masterRecordsTable" class="divide-y divide-darkborder text-neutral-300">
+                                <tr><td colspan="6" class="py-8 text-center text-neutral-500">No records found in database.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-live-hub" class="tab-content hidden space-y-6">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold tracking-tight text-white">Live Police Hub</h2>
+                        <p class="text-sm text-neutral-400">Live active unit and dispatch telemetry from the city network.</p>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-neutral-900 border border-neutral-800 px-3 py-2 rounded-xl text-xs text-neutral-400">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>Live dispatch sync</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="bg-darkcard p-6 rounded-2xl glow-card lg:col-span-2 space-y-4">
+                        <h3 class="font-bold text-white flex items-center space-x-2">
+                            <i class="fa-solid fa-users text-violet-500"></i>
+                            <span>Active Officers & Units</span>
+                        </h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="border-b border-darkborder text-xs text-neutral-500 uppercase">
+                                    <tr>
+                                        <th class="py-2 px-3">Person</th>
+                                        <th class="py-2 px-3">Callsign</th>
+                                        <th class="py-2 px-3">Team</th>
+                                        <th class="py-2 px-3">Unit</th>
+                                        <th class="py-2 px-3">Location</th>
+                                        <th class="py-2 px-3">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="erlcUnitsTable" class="divide-y divide-darkborder text-neutral-300">
+                                    <tr><td colspan="6" class="py-6 text-center text-neutral-500 text-xs">Connecting to the live city network...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="bg-darkcard p-6 rounded-2xl glow-card space-y-4">
+                        <h3 class="font-bold text-white flex items-center space-x-2">
+                            <i class="fa-solid fa-tower-cell text-cyan-500"></i>
+                            <span>System API Status</span>
+                        </h3>
+                        <div class="space-y-3 text-xs text-neutral-400">
+                            <div class="flex justify-between py-2 border-b border-darkborder">
+                                <span>Proxy Connection:</span>
+                                <span id="proxyState" class="text-amber-400 font-medium">Connecting...</span>
+                            </div>
+                            <div class="flex justify-between py-2 border-b border-darkborder">
+                                <span>Service Name:</span>
+                                <span id="serverNameLabel" class="text-white font-medium">--</span>
+                            </div>
+                            <div class="flex justify-between py-2 border-b border-darkborder">
+                                <span>Total Operators:</span>
+                                <span id="serverPlayerCount" class="text-white font-medium">--</span>
+                            </div>
+                            <div class="flex justify-between py-2">
+                                <span>Active Calls:</span>
+                                <span id="serverCallCount" class="text-white font-medium">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-analytics" class="tab-content hidden space-y-6">
+                <div>
+                    <h2 class="text-2xl font-bold tracking-tight text-white">Department Analytics</h2>
+                    <p class="text-sm text-neutral-400">Interactive charts for arrests, citations, and incidents.</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-darkcard p-6 rounded-2xl glow-card">
+                        <h3 class="font-bold text-white mb-4 text-sm">Incident Type Distribution</h3>
+                        <div class="h-64 flex items-center justify-center">
+                            <canvas id="incidentTypeChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="bg-darkcard p-6 rounded-2xl glow-card">
+                        <h3 class="font-bold text-white mb-4 text-sm">Citation Type Distribution</h3>
+                        <div class="h-64 flex items-center justify-center">
+                            <canvas id="citationTypeChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        let appState = {
+            arrests: [],
+            citations: [],
+            incidents: [],
+            warrants: [],
+            activeUnits: [],
+            livePlayers: [],
+            userName: '',
+            arrestSeq: 1,
+            citationSeq: 1,
+            incidentSeq: 1,
+            isSpdMember: false
+        };
+
+        let charts = {
+            incident: null,
+            citation: null
+        };
+
+        let erlcSyncInFlight = false;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadAuth();
+            await loadRecords();
+            await loadWarrants();
+            await syncERLCData();
+            window.setInterval(syncERLCData, 5000);
+            updateCaseNumberFields();
+            updateDashboard();
+        });
+
+        function switchTab(tabId) {
+            if ((tabId === 'arrest-log' || tabId === 'citation-log' || tabId === 'incident-log') && !appState.isSpdMember) {
+                alert('You must be on the SPD team in ER:LC to create logs.');
+                return;
+            }
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-btn').forEach(el => {
+                el.classList.remove('active', 'bg-red-600', 'text-white', 'glow-red');
+                el.classList.add('text-neutral-400', 'hover:bg-neutral-900', 'hover:text-white');
+            });
+
+            const targetTab = document.getElementById(`tab-${tabId}`);
+            const targetNav = document.getElementById(`nav-${tabId}`);
+
+            if (targetTab) targetTab.classList.remove('hidden');
+            if (targetNav) {
+                targetNav.classList.remove('text-neutral-400', 'hover:bg-neutral-900', 'hover:text-white');
+                targetNav.classList.add('active', 'text-white');
+            }
+
+            if (tabId === 'records') renderRecordsTable();
+            if (tabId === 'analytics') renderAnalyticsCharts();
+            if (tabId === 'warrants') renderWarrantTable();
+        }
+
+        function toggleAccountMenu() {
+            const menu = document.getElementById('accountMenu');
+            const button = document.getElementById('accountButton');
+            const isHidden = menu.classList.toggle('hidden');
+            button.setAttribute('aria-expanded', String(!isHidden));
+        }
+
+        function escapeHtml(value) {
+            return String(value).replace(/[&<>'"]/g, character => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+            }[character]));
+        }
+
+        function redirectToAccessDenied(response) {
+            if (response.status !== 403) return false;
+            document.documentElement.style.visibility = 'hidden';
+            window.location.replace('/');
+            return true;
+        }
+
+        function selectedUnitNames(pickerId) {
+            return [...document.querySelectorAll(`#${pickerId} input[type="checkbox"]:checked`)].map(input => input.value);
+        }
+
+        function renderUnitPickers() {
+            const selected = new Set([...selectedUnitNames(), ...(appState.selectedUnits || [])]);
+            const availableUnits = appState.activeUnits.filter(unit => unit.name !== appState.userName);
+            const content = availableUnits.length === 0
+                ? '<p class="px-4 pb-3 text-xs text-neutral-500">No other police units are currently active.</p>'
+                : availableUnits.map((unit, index) => {
+                    const safeName = escapeHtml(unit.name);
+                    const inputId = `unit-${index}-${escapeHtml(unit.id)}`;
+                    return `<label for="${inputId}" class="flex items-center gap-3 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800 cursor-pointer"><input id="${inputId}" type="checkbox" value="${safeName}" class="accent-red-600" /><span>${safeName}</span></label>`;
+                }).join('');
+            ['arrestUnits', 'citationUnits', 'incidentUnits'].forEach(id => {
+                const container = document.getElementById(id);
+                if (container) {
+                    container.innerHTML = `<details><summary><span class="unit-picker-label">Choose active units</span><i class="fa-solid fa-chevron-down float-right text-neutral-400"></i></summary><div class="max-h-48 overflow-y-auto pt-2">${content}</div></details>`;
+                }
+            });
+            updateUnitPickerLabels();
+        }
+
+        function updateUnitPickerLabels() {
+            document.querySelectorAll('.unit-picker').forEach(picker => {
+                const names = [...picker.querySelectorAll('input:checked')].map(input => input.value);
+                const label = picker.querySelector('.unit-picker-label');
+                if (label) label.textContent = names.length ? `${names.length} active unit${names.length === 1 ? '' : 's'} selected` : 'Choose active units';
+            });
+        }
+
+        function clearUnitPickers() {
+            document.querySelectorAll('.unit-picker input[type="checkbox"]').forEach(input => { input.checked = false; });
+            updateUnitPickerLabels();
+        }
+
+        function updateCaseNumberFields() {
+            const arrestNum = 'ARR-' + String(appState.arrestSeq).padStart(5, '0');
+            const citationNum = 'CIT-' + String(appState.citationSeq).padStart(5, '0');
+            const incidentNum = 'INC-' + String(appState.incidentSeq).padStart(5, '0');
+
+            document.getElementById('arrestCaseNum').textContent = arrestNum;
+            document.getElementById('citationCaseNum').textContent = citationNum;
+            document.getElementById('incidentCaseNum').textContent = incidentNum;
+        }
+
+        async function submitArrestReport(e) {
+            e.preventDefault();
+            const suspectName = document.getElementById('arrestSuspect').value.trim();
+            const selectedPlayer = appState.livePlayers.find(player => player.name.toLowerCase() === suspectName.toLowerCase());
+            if (!selectedPlayer) {
+                alert('Select a suspect from the current in-game player list.');
+                return;
+            }
+            const userName = appState.userName;
+            const otherUnits = selectedUnitNames('arrestUnits');
+            const unitsResponded = [userName, ...otherUnits].filter(Boolean).join(', ');
+
+            const newReport = {
+                category: 'arrest',
+                offense: document.getElementById('arrestOffense').value,
+                suspect: selectedPlayer.name,
+                suspectId: selectedPlayer.id,
+                location: document.getElementById('arrestLocation').value,
+                units: unitsResponded,
+                notes: document.getElementById('arrestNotes').value,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })
+            };
+
+            if (!await publishRecord(newReport)) return;
+            await loadRecords();
+            updateCaseNumberFields();
+            document.getElementById('arrestReportForm').reset();
+            clearUnitPickers();
+            updateDashboard();
+            switchTab('dashboard');
+        }
+
+        async function submitCitationReport(e) {
+            e.preventDefault();
+            const userName = appState.userName;
+            const otherUnits = selectedUnitNames('citationUnits');
+            const unitsResponded = [userName, ...otherUnits].filter(Boolean).join(', ');
+
+            const newReport = {
+                category: 'citation',
+                type: document.getElementById('citationType').value,
+                driver: document.getElementById('citationDriver').value,
+                vehicle: document.getElementById('citationVehicle').value,
+                location: document.getElementById('citationLocation').value,
+                reason: document.getElementById('citationReason').value,
+                units: unitsResponded,
+                notes: document.getElementById('citationNotes').value,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })
+            };
+
+            if (!await publishRecord(newReport)) return;
+            await loadRecords();
+            updateCaseNumberFields();
+            document.getElementById('citationReportForm').reset();
+            clearUnitPickers();
+            updateDashboard();
+            switchTab('dashboard');
+        }
+
+        async function submitIncidentReport(e) {
+            e.preventDefault();
+            const userName = appState.userName;
+            const otherUnits = selectedUnitNames('incidentUnits');
+            const unitsResponded = [userName, ...otherUnits].filter(Boolean).join(', ');
+
+            const newReport = {
+                category: 'incident',
+                type: document.getElementById('incidentType').value,
+                location: document.getElementById('incidentLocation').value,
+                severity: document.getElementById('incidentSeverity').value,
+                units: unitsResponded,
+                narrative: document.getElementById('incidentNarrative').value,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })
+            };
+
+            if (!await publishRecord(newReport)) return;
+            await loadRecords();
+            updateCaseNumberFields();
+            document.getElementById('incidentReportForm').reset();
+            clearUnitPickers();
+            updateDashboard();
+            switchTab('dashboard');
+        }
+
+        async function submitWarrant(event) {
+            event.preventDefault();
+            const warrant = {
+                id: document.getElementById('warrantId').value,
+                suspect_name: document.getElementById('warrantSuspect').value,
+                suspect_id: document.getElementById('warrantSuspectId').value || null,
+                charges: document.getElementById('warrantCharges').value,
+                type: document.getElementById('warrantType').value,
+                source: 'manual',
+                status: 'active'
+            };
+
+            const response = await fetch('/api/warrants', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(warrant)
+            });
+            if (redirectToAccessDenied(response)) return;
+            if (!response.ok) {
+                const error = await response.json();
+                alert(error.error || 'Failed to publish warrant');
+                return;
+            }
+            document.getElementById('warrantForm').reset();
+            await loadWarrants();
+            renderWarrantTable();
+            updateDashboard();
+            switchTab('warrants');
+        }
+
+        function updateDashboard() {
+            document.getElementById('kpiTotalArrests').innerText = appState.arrests.length;
+            document.getElementById('kpiTotalCitations').innerText = appState.citations.length;
+            document.getElementById('kpiTotalIncidents').innerText = appState.incidents.length;
+            document.getElementById('kpiActiveWarrants').innerText = appState.warrants.length;
+
+            const arrestBody = document.getElementById('recentArrestTableBody');
+            if (appState.arrests.length === 0) {
+                arrestBody.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-neutral-500 text-xs">No arrest records yet.</td></tr>`;
+            } else {
+                arrestBody.innerHTML = appState.arrests.slice(0, 5).map(a => `
+                    <tr class="hover:bg-neutral-900/50">
+                        <td class="py-3 px-3 font-mono text-red-500 font-semibold">${escapeHtml(a.id)}</td>
+                        <td class="py-3 px-3">${escapeHtml(a.suspect || 'Unknown')}</td>
+                        <td class="py-3 px-3">${escapeHtml(a.offense || '-')}</td>
+                        <td class="py-3 px-3 text-neutral-400 text-xs">${escapeHtml(a.timestamp)}</td>
+                    </tr>
+                `).join('');
+            }
+
+            const citationBody = document.getElementById('recentCitationTableBody');
+            if (appState.citations.length === 0) {
+                citationBody.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-neutral-500 text-xs">No citation records yet.</td></tr>`;
+            } else {
+                citationBody.innerHTML = appState.citations.slice(0, 5).map(c => `
+                    <tr class="hover:bg-neutral-900/50">
+                        <td class="py-3 px-3 font-mono text-amber-500 font-semibold">${escapeHtml(c.id)}</td>
+                        <td class="py-3 px-3">${escapeHtml(c.vehicle || 'Unknown')}</td>
+                        <td class="py-3 px-3">${escapeHtml(c.reason || '-')}</td>
+                        <td class="py-3 px-3"><span class="px-2 py-0.5 rounded text-xs bg-amber-950 text-amber-400">${escapeHtml(c.type || 'Traffic')}</span></td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        function renderRecordsTable() {
+            const tableBody = document.getElementById('masterRecordsTable');
+            const search = document.getElementById('recordSearchInput').value.toLowerCase();
+            const filter = document.getElementById('recordFilterType').value;
+
+            let allRecords = [
+                ...appState.arrests.map(r => ({ ...r, displayType: 'Arrest', detail: `${r.offense} - ${r.suspect} at ${r.location}` })),
+                ...appState.citations.map(r => ({ ...r, displayType: 'Citation', detail: `${r.type}: ${r.reason} - ${r.vehicle} @ ${r.location}` })),
+                ...appState.incidents.map(r => ({ ...r, displayType: 'Incident', detail: `${r.type} - ${r.location} (${r.severity})` }))
+            ];
+
+            allRecords.sort((a, b) => b.id.localeCompare(a.id));
+
+            if (filter !== 'all') {
+                allRecords = allRecords.filter(r => r.category === filter);
+            }
+
+            if (search) {
+                allRecords = allRecords.filter(r =>
+                    r.id.toLowerCase().includes(search) ||
+                    (r.units || '').toLowerCase().includes(search) ||
+                    (r.detail || '').toLowerCase().includes(search)
+                );
+            }
+
+            if (allRecords.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-neutral-500">No matching records found.</td></tr>`;
+                return;
+            }
+
+            tableBody.innerHTML = allRecords.map(r => `
+                <tr class="hover:bg-neutral-900/50 transition">
+                    <td class="py-3 px-4 font-mono font-bold ${r.category === 'arrest' ? 'text-red-500' : r.category === 'citation' ? 'text-amber-500' : 'text-blue-500'}">${escapeHtml(r.id)}</td>
+                    <td class="py-3 px-4"><span class="px-2.5 py-1 rounded-lg text-xs font-semibold ${r.category === 'arrest' ? 'bg-red-950/80 text-red-400 border border-red-900/40' : r.category === 'citation' ? 'bg-amber-950/80 text-amber-400 border border-amber-900/40' : 'bg-blue-950/80 text-blue-400 border border-blue-900/40'}">${escapeHtml(r.displayType)}</span></td>
+                    <td class="py-3 px-4 text-white">${escapeHtml(r.detail)}</td>
+                    <td class="py-3 px-4 text-neutral-400">${escapeHtml(r.units || '-')}</td>
+                    <td class="py-3 px-4 text-neutral-400 text-xs">${escapeHtml(r.timestamp)}</td>
+                    <td class="py-3 px-4 text-right">
+                        ${r.publishedById === appState.userId ? `<button onclick="deleteRecord('${r.id}')" class="text-neutral-500 hover:text-red-500 transition px-2 py-1" title="Delete record">Delete</button>` : ''}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterRecords() {
+            renderRecordsTable();
+        }
+
+        async function deleteRecord(id) {
+            if (!confirm(`Are you sure you want to delete record ${id}?`)) return;
+            const response = await fetch(`/api/records/${encodeURIComponent(id)}`, { method: 'DELETE' });
+            if (redirectToAccessDenied(response)) return;
+            if (!response.ok) {
+                const error = await response.json();
+                alert(error.error || 'Unable to delete this record.');
+                return;
+            }
+            await loadRecords();
+            if (document.getElementById('recordFilterType')) renderRecordsTable();
+        }
+
+        function renderWarrantTable() {
+            const table = document.getElementById('activeWarrantTable');
+            const active = appState.warrants.filter(w => w.status === 'active');
+            if (active.length === 0) {
+                table.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-neutral-500 text-xs">No active warrants or BOLOs found.</td></tr>`;
+                return;
+            }
+
+            table.innerHTML = active.map(w => `
+                <tr class="hover:bg-neutral-900/50">
+                    <td class="py-2.5 px-3 font-medium text-white">${escapeHtml(w.suspect_name || w.suspect || 'Unknown')}</td>
+                    <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-xs ${w.type === 'bolo' ? 'bg-amber-950 text-amber-400' : 'bg-red-950 text-red-400'}">${escapeHtml(w.type || 'warrant')}</span></td>
+                    <td class="py-2.5 px-3 text-neutral-300"><span class="px-2 py-0.5 rounded text-xs ${w.source === 'erlc' ? 'bg-violet-950 text-violet-300' : 'bg-emerald-950 text-emerald-400'}">${w.source === 'erlc' ? 'ERLC' : 'Manual'}</span></td>
+                    <td class="py-2.5 px-3 text-neutral-300">${escapeHtml(w.charges || 'No details')}</td>
+                </tr>
+            `).join('');
+        }
+
+        function renderAnalyticsCharts() {
+            const incidentTypes = { Disturbance: 0, Theft: 0, Vehicle: 0, Assault: 0, Misc: 0 };
+            appState.incidents.forEach(i => {
+                if (incidentTypes[i.type] !== undefined) incidentTypes[i.type]++;
+                else incidentTypes[i.type] = 1;
+            });
+
+            const incidentCanvas = document.getElementById('incidentTypeChart').getContext('2d');
+            if (charts.incident) charts.incident.destroy();
+            charts.incident = new Chart(incidentCanvas, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(incidentTypes),
+                    datasets: [{
+                        data: Object.values(incidentTypes),
+                        backgroundColor: ['#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6', '#10b981'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#a3a3a3', boxWidth: 12 } } }
+                }
+            });
+
+            const citationTypes = { Traffic: 0, Ordinance: 0, Equipment: 0, Parking: 0, Other: 0 };
+            appState.citations.forEach(c => {
+                if (citationTypes[c.type] !== undefined) citationTypes[c.type]++;
+                else citationTypes[c.type] = 1;
+            });
+
+            const citationCanvas = document.getElementById('citationTypeChart').getContext('2d');
+            if (charts.citation) charts.citation.destroy();
+            charts.citation = new Chart(citationCanvas, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(citationTypes),
+                    datasets: [{
+                        data: Object.values(citationTypes),
+                        backgroundColor: ['#f59e0b', '#f97316', '#facc15', '#34d399', '#ef4444'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#a3a3a3', boxWidth: 12 } } }
+                }
+            });
+        }
+
+        function setERLCStatus(status, className, serverName = '--', playerCount = '--', callCount = '--') {
+            document.getElementById('proxyState').innerText = status;
+            document.getElementById('proxyState').className = `${className} font-medium`;
+            document.getElementById('serverNameLabel').innerText = serverName;
+            document.getElementById('serverPlayerCount').innerText = playerCount;
+            document.getElementById('serverCallCount').innerText = callCount;
+        }
+
+        async function syncERLCData() {
+            if (erlcSyncInFlight) return;
+            erlcSyncInFlight = true;
+            try {
+                const res = await fetch('/api/erlc/status', { cache: 'no-store' });
+                if (redirectToAccessDenied(res)) return;
+                const data = await res.json();
+
+                if (!res.ok || data.error) {
+                    setTeamMembership(false);
+                    const notConfigured = data.error && data.error.includes('not configured');
+                    setERLCStatus(notConfigured ? 'Not configured' : 'Offline / Error', notConfigured ? 'text-amber-400' : 'text-red-400');
+                    document.getElementById('kpiActiveUnits').innerText = '--';
+                    const errorMessage = notConfigured ? 'Configure ERLC_SERVER_KEY in your .env file.' : 'The city network is unavailable.';
+                    document.getElementById('erlcUnitsTable').innerHTML = `<tr><td colspan="6" class="py-6 text-center ${notConfigured ? 'text-amber-500' : 'text-red-400'} text-xs">${errorMessage}</td></tr>`;
+                    return;
+                }
+
+                const players = Array.isArray(data.Players) ? data.Players : [];
+                setTeamMembership(data.isSpdMember === true);
+                const emergencyCalls = Array.isArray(data.EmergencyCalls) ? data.EmergencyCalls : [];
+                const serverName = data.ServerName || data.Name || data.Server || '--';
+                setERLCStatus('Connected', 'text-emerald-400', serverName, players.length, emergencyCalls.length);
+                {
+                    const normalizeTeam = team => String(team || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+                    const configuredTeam = normalizeTeam(data.spdTeamName || 'SPD');
+                    const activeTeams = new Set(['police', 'spd', configuredTeam]);
+                    const policePlayers = players.filter(p => activeTeams.has(normalizeTeam(p.Team)));
+                    const vehicles = Array.isArray(data.Vehicles) ? data.Vehicles : [];
+                    const getPlayerName = player => String(typeof player === 'string' ? player : player.Player || player.Username || player.Name || '').split(':')[0].trim();
+                    appState.livePlayers = players.map(player => {
+                        const rawName = String(typeof player === 'string' ? player : player.Player || player.Username || player.Name || '');
+                        const parts = rawName.split(':');
+                        const playerId = typeof player === 'object' && player
+                            ? player.UserId || player.UserID || player.userId || player.Id || player.id || parts[1] || ''
+                            : parts[1] || '';
+                        return { name: parts[0].trim(), id: String(playerId) };
+                    }).filter(player => player.name).filter((player, index, list) => list.findIndex(candidate => candidate.name.toLowerCase() === player.name.toLowerCase()) === index);
+                    document.getElementById('livePlayerOptions').innerHTML = appState.livePlayers.map(player => `<option value="${escapeHtml(player.name)}"></option>`).join('');
+                    const getVehicleOwner = vehicle => String(vehicle.Owner || vehicle.Player || vehicle.Username || '').split(':')[0];
+                    const getVehicleName = vehicle => vehicle.Name || vehicle.Vehicle || vehicle.Model || 'Vehicle unavailable';
+                    const getPlayerLocation = player => player.Location || player.location || 'Location unavailable';
+                    const findVehicle = player => {
+                        const playerName = getPlayerName(player).toLowerCase();
+                        return vehicles.find(vehicle => getVehicleOwner(vehicle).toLowerCase() === playerName);
+                    };
+                    appState.activeUnits = policePlayers.map((player, index) => ({
+                        id: `${index}-${getPlayerName(player)}`,
+                        name: getPlayerName(player) || 'Unknown player',
+                        callsign: player.Callsign || player.CallSign || player.callsign || ''
+                    }));
+                    renderUnitPickers();
+                    document.getElementById('kpiActiveUnits').innerText = policePlayers.length;
+                    const unitsTable = document.getElementById('erlcUnitsTable');
+                    if (policePlayers.length === 0) {
+                        unitsTable.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-neutral-500 text-xs">No police units are currently active in-game.</td></tr>`;
+                    } else {
+                        unitsTable.innerHTML = policePlayers.map(p => `
+                            <tr class="hover:bg-neutral-900/50">
+                                <td class="py-2.5 px-3 font-medium text-white">${escapeHtml(getPlayerName(p) || 'Unknown player')}</td>
+                                <td class="py-2.5 px-3 text-neutral-300">${escapeHtml(p.Callsign || p.CallSign || p.callsign || '-')}</td>
+                                <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-xs bg-neutral-800 text-neutral-300">${escapeHtml(p.Team || '-')}</span></td>
+                                <td class="py-2.5 px-3 text-neutral-300">${escapeHtml(findVehicle(p) ? getVehicleName(findVehicle(p)) : 'On foot')}</td>
+                                <td class="py-2.5 px-3 text-neutral-300">${escapeHtml(getPlayerLocation(p))}</td>
+                                <td class="py-2.5 px-3 text-emerald-400 text-xs">On Duty</td>
+                            </tr>
+                        `).join('');
+                    }
+                }
+
+                try {
+                    const mdtResponse = await fetch('/api/erlc/mdt', { cache: 'no-store' });
+                    if (redirectToAccessDenied(mdtResponse)) return;
+                    const mdtData = await mdtResponse.json();
+                    if (mdtResponse.ok && Array.isArray(mdtData.warrants)) {
+                        const erlcWarrants = mdtData.warrants.map((w, index) => ({
+                            id: w.id || `ERLC-${index + 1}`,
+                            suspect_name: w.suspect_name || w.suspect || w.name || 'Unknown suspect',
+                            suspect_id: w.suspect_id || w.UserId || w.userId || '',
+                            charges: w.charges || w.reason || 'No details',
+                            type: w.type || 'warrant',
+                            source: 'erlc',
+                            status: 'active'
+                        }));
+                        appState.warrants = [...appState.warrants.filter(w => w.source !== 'erlc'), ...erlcWarrants];
+                    }
+                } catch (err) {
+                    console.warn('ERLC MDT sync error', err);
+                }
+
+                renderWarrantTable();
+            } catch (err) {
+                console.error('ERLC sync error:', err);
+                setTeamMembership(false);
+                setERLCStatus('Offline / Error', 'text-red-400');
+                document.getElementById('kpiActiveUnits').innerText = '--';
+                document.getElementById('erlcUnitsTable').innerHTML = `<tr><td colspan="5" class="py-6 text-center text-red-400 text-xs">Unable to reach the live operations API.</td></tr>`;
+            } finally {
+                erlcSyncInFlight = false;
+            }
+        }
+
+        async function loadRecords() {
+            const response = await fetch('/api/records');
+            if (redirectToAccessDenied(response)) return;
+            const records = await response.json();
+            appState.arrests = records.filter(record => record.category === 'arrest');
+            appState.citations = records.filter(record => record.category === 'citation');
+            appState.incidents = records.filter(record => record.category === 'incident');
+            appState.arrestSeq = Math.max(0, ...appState.arrests.map(record => Number(String(record.id).replace(/\D/g, '')))) + 1;
+            appState.citationSeq = Math.max(0, ...appState.citations.map(record => Number(String(record.id).replace(/\D/g, '')))) + 1;
+            appState.incidentSeq = Math.max(0, ...appState.incidents.map(record => Number(String(record.id).replace(/\D/g, '')))) + 1;
+            updateCaseNumberFields();
+            updateDashboard();
+            renderRecordsTable();
+        }
+
+        async function loadWarrants() {
+            const response = await fetch('/api/warrants');
+            if (redirectToAccessDenied(response)) return;
+            if (!response.ok) return;
+            const warrants = await response.json();
+            appState.warrants = warrants.map(w => ({
+                ...w,
+                source: w.source || 'manual',
+                type: w.type || 'warrant',
+                status: w.status || 'active'
+            }));
+            renderWarrantTable();
+            updateDashboard();
+        }
+
+        async function loadAuth() {
+            const response = await fetch('/api/auth/me');
+            const data = await response.json();
+            if (!data.user) {
+                window.location.assign('/login');
+                return;
+            }
+            appState.userId = data.user.id;
+            appState.userName = data.user.name;
+            document.getElementById('currentUserName').textContent = data.user.name;
+            document.getElementById('accountMenuName').textContent = data.user.name;
+            const avatarUrl = data.user.avatarUrl || (data.user.id ? `https://www.roblox.com/headshot-thumbnail/image?userId=${encodeURIComponent(data.user.id)}&width=150&height=150&format=png` : '');
+            if (avatarUrl) {
+                const avatar = document.getElementById('accountAvatar');
+                avatar.onerror = () => {
+                    avatar.classList.add('hidden');
+                    document.getElementById('accountAvatarFallback').classList.remove('hidden');
+                };
+                avatar.src = avatarUrl;
+                avatar.classList.remove('hidden');
+                document.getElementById('accountAvatarFallback').classList.add('hidden');
+            }
+        }
+
+        function setTeamMembership(isMember) {
+            appState.isSpdMember = isMember;
+            document.querySelectorAll('.log-control').forEach(control => { control.disabled = !isMember; });
+            const status = document.getElementById('spdTeamStatus');
+            status.textContent = isMember ? 'SPD team verified' : 'Join SPD in-game to log';
+            status.className = isMember ? 'text-xs text-emerald-400' : 'text-xs text-amber-400';
+        }
+
+        async function publishRecord(record) {
+            const response = await fetch('/api/records', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(record)
+            });
+            if (redirectToAccessDenied(response)) return false;
+            if (response.status === 401) {
+                alert('Sign in with Roblox before publishing a record.');
+                return false;
+            }
+            if (!response.ok) {
+                const error = await response.json();
+                alert(error.error || 'Unable to publish this record.');
+                return false;
+            }
+            return true;
+        }
+    </script>
+</body>
+</html>

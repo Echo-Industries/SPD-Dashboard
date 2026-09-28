@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">Seattle Police Department badge</title>
+  <path d="M64 5 112 23v37c0 29-19 50-48 63C35 110 16 89 16 60V23L64 5Z" fill="#142b40" stroke="#83b6d7" stroke-width="5"/>
+  <path d="M64 19 99 32v28c0 20-12 36-35 47C41 96 29 80 29 60V32l35-13Z" fill="#1d496c" stroke="#d4e2eb" stroke-width="2"/>
+  <path d="M64 31 70 44l14 1-11 9 4 14-13-8-13 8 4-14-11-9 14-1 6-13Z" fill="#dce9f1"/>
+  <text x="64" y="88" fill="#fff" font-family="Arial, sans-serif" font-size="15" font-weight="700" text-anchor="middle">SEATTLE</text>
+  <text x="64" y="103" fill="#c6d8e5" font-family="Arial, sans-serif" font-size="9" font-weight="700" letter-spacing="2" text-anchor="middle">POLICE</text>
+</svg>
